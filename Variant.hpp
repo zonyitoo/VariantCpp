@@ -74,4 +74,10 @@ private:
     ElementType elem;
 };
 
+template <typename ElementType>
+std::shared_ptr<VariantBase> make_variant(const ElementType &elem) {
+    VariantBase *variant = new Variant<ElementType>(elem);
+    return std::shared_ptr<VariantBase>(variant);
+}
+
 #endif

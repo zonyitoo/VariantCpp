@@ -128,7 +128,7 @@ public:
             node = node->prev.lock();
             return tmp;
         }
-        std::shared_ptr<VariantBase> operator*() {
+        std::shared_ptr<VariantBase> &operator*() {
             return node->data;
         }
         VariantBase *operator->() {
@@ -234,14 +234,14 @@ public:
         if (begin() == end()) {
             throw std::underflow_error("VariantList is empty");
         }
-        erase(-- end());
+        erase(rbegin());
     }
 
     void pop_front() {
         if (begin() == end()) {
             throw std::underflow_error("VariantList is empty");
         }
-        erase(++ begin());
+        erase(begin());
     }
 
     bool empty() const {

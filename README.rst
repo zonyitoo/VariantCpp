@@ -1,8 +1,8 @@
-------------
-Variant List
-------------
+-----------
+Variant CPP
+-----------
 
-A flexible C++ linked list, which can contain any type
+A flexible C++ data structure, which can contain any type
 
 Just for fun. But I will continue to improve it. :P
 
@@ -41,6 +41,9 @@ Usage
         cout << "Second: " << itr->get<double>() << endl;
         ++ itr;
         cout << "Third: " << itr->get<string>() << endl;
+
+        *itr = make_variant(10.2); // Change element 3 "Hello" (std::string) to 10.2 (Double)
+        cout << "Third: " << itr->get<double>() << endl;
 
         return 0;
     }
