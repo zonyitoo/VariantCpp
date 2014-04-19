@@ -1,112 +1,116 @@
-#ifndef VARIANT_LIST_H_
-#define VARIANT_LIST_H_
+#ifndef __VARIANT_LIST_H__
+#define __VARIANT_LIST_H__
+
+#include "Variant.hpp"
 
 #include <memory>
 #include <iterator>
 #include <stdexcept>
-#include <iostream>
-#include <sstream>
-
-#define DEFINE_GETTER(type, name, member) \
-    type name() const { return member; }
-
-class VariantListElementBase {
-public:
-    VariantListElementBase() {}
-    virtual ~VariantListElementBase() {}
-
-    virtual std::string to_string() const {return "";};
-
-    virtual std::ostream& write_to_stream(std::ostream& os) const {return os;}
-
-    friend std::ostream& operator<<(std::ostream& os, const VariantListElementBase& elem) {
-        return elem.write_to_stream(os);
-    }
-
-    virtual std::shared_ptr<VariantListElementBase> duplicate() const {
-        return std::make_shared<VariantListElementBase>();
-    }
-};
-
-template <typename ElementType>
-class VariantListElement : public VariantListElementBase {
-public:
-    VariantListElement(const ElementType &elem) : elem(elem) {}
-    VariantListElement(const VariantListElement &rhs) : elem(rhs.elem) {}
-    virtual ~VariantListElement() {}
-    ElementType get() const {
-        return elem;
-    }
-
-    virtual std::string to_string() const {
-        std::stringstream buf;
-        buf << get();
-        return buf.str();
-    }
-    
-    virtual std::ostream& write_to_stream(std::ostream& os) const {
-        os << elem;
-        return os;
-    }
-
-    virtual std::shared_ptr<VariantListElementBase> duplicate() const {
-        auto newelem = new VariantListElement<ElementType>(*this);
-        return std::shared_ptr<VariantListElementBase>(newelem);
-    }
-
-private:
-    ElementType elem;
-};
 
 class VariantList {
 public:
-    VariantList(): len(0) {
-        head = std::make_shared<Node>();
-        tail = head;
+    struct Node {
+        std::shared_ptr<Node> next;
+        std::weak_ptr<Node> prev;
+        std::shared_ptr<VariantBase> data;
+    };
+
+    VariantList()
+        : head(std::make_shared<Node>()), tail(std::make_shared<Node>()), len(0) {
+        head->next = tail;
+        tail->prev = head;
     }
-    VariantList(const VariantList &rhs): len(0) {
-        head = std::make_shared<Node>();
-        tail = head;
-        for (auto node : rhs) {
-            auto newnode = std::make_shared<VariantList::Node>();
-            newnode->elem = node->elem->duplicate();
+    VariantList(const VariantList &rhs)
+        : VariantList() {
+        for (auto item : rhs) {
+            auto newnode = std::make_shared<Node>();
+            newnode->data = item->duplicate();
             insert_node(newnode, end());
         }
     }
-    VariantList& operator=(const VariantList& rhs) {
+
+    VariantList (VariantList &&rhs) {
+        swap(rhs);
+    }
+
+    VariantList &operator=(const VariantList &rhs) {
         clear();
-        for (auto node : rhs) {
-            auto newnode = std::make_shared<VariantList::Node>();
-            newnode->elem = node->elem->duplicate();
+        for (auto item : rhs) {
+            auto newnode = std::make_shared<Node>();
+            newnode->data = item->duplicate();
             insert_node(newnode, end());
         }
         return *this;
     }
-    ~VariantList() {
-        clear();
-    }
 
-    struct Node {
-        std::shared_ptr<Node> next;
-        std::weak_ptr<Node> prev;
-        std::shared_ptr<VariantListElementBase> elem;
-
-        template <typename ElementType>
-        ElementType get() const {
-            return static_cast<VariantListElement<ElementType> *>(elem.get())->get();
+    class const_iterator : public std::iterator<std::bidirectional_iterator_tag, std::shared_ptr<VariantBase>> {
+    public:
+        const_iterator(std::shared_ptr<Node> node)
+            : node(node) {}
+        const_iterator(const const_iterator &rhs)
+            : node(rhs.node) {}
+        const_iterator(const_iterator &&rhs)
+            : node(std::move(rhs.node)) {}
+        iterator &operator=(const const_iterator &rhs) {
+            node = rhs.node;
+            return *this;
         }
+
+        const_iterator &operator++() {
+            node = node->next;
+            return *this;
+        }
+        const_iterator operator++(int) {
+            const_iterator tmp(*this);
+            node = node->next;
+            return tmp;
+        }
+        const_iterator &operator--() {
+            node = node->prev.lock();
+            return *this;
+        }
+        const_iterator operator--(int) {
+            const_iterator tmp(*this);
+            node = node->prev.lock();
+            return tmp;
+        }
+
+        bool operator==(const const_iterator &rhs) const {
+            return rhs.node == node;
+        }
+        bool operator!=(const const_iterator &rhs) const {
+            return !(rhs == *this);
+        }
+
+        std::shared_ptr<VariantBase> operator*() const {
+            return node->data;
+        }
+
+        VariantBase *operator->() const {
+            return node->data.get();
+        }
+
+        std::shared_ptr<Node> get() const {
+            return node;
+        }
+
+    protected:
+        std::shared_ptr<Node> node;
     };
 
-    DEFINE_GETTER(size_t, size, len);
-
-    class iterator : std::iterator<std::bidirectional_iterator_tag, VariantList::Node> {
+    class iterator : public const_iterator {
     public:
-        iterator() {}
-        iterator(const std::shared_ptr<VariantList::Node> n): node(n) {}
-        iterator(const iterator& itr): node(itr.node) {}
-        ~iterator() {}
-
-        iterator& operator++() {
+        iterator(std::shared_ptr<Node> node)
+            : const_iterator(node) {}
+        iterator(const iterator &rhs)
+            : const_iterator(rhs) {}
+        iterator(iterator &&rhs)
+            : const_iterator(rhs) {}
+        iterator &operator=(const iterator &rhs) {
+            node = rhs.node;
+            return *this;
+        }
+        iterator &operator++() {
             node = node->next;
             return *this;
         }
@@ -115,7 +119,7 @@ public:
             node = node->next;
             return tmp;
         }
-        iterator& operator--() {
+        iterator &operator--() {
             node = node->prev.lock();
             return *this;
         }
@@ -124,19 +128,76 @@ public:
             node = node->prev.lock();
             return tmp;
         }
+        std::shared_ptr<VariantBase> operator*() {
+            return node->data;
+        }
+        VariantBase *operator->() {
+            return node->data.get();
+        }
+    };
 
-        bool operator==(const iterator& rhs) const {
-            return rhs.node == node;
+    class const_reverse_iterator : public const_iterator {
+    public:
+        const_reverse_iterator(std::shared_ptr<Node> node)
+            : const_iterator(node) {}
+        const_reverse_iterator(const const_reverse_iterator &rhs)
+            : const_iterator(rhs) {}
+        const_reverse_iterator(const_reverse_iterator &&rhs)
+            : const_iterator(rhs) {}
+        const_reverse_iterator &operator=(const const_reverse_iterator &rhs) {
+            node = rhs.node;
+            return *this;
         }
-        bool operator!=(const iterator& rhs) const {
-            return !(rhs == *this);
+        const_reverse_iterator &operator++() {
+            node = node->prev.lock();
+            return *this;
         }
-        std::shared_ptr<VariantList::Node> operator*() {
-            return node;
+        const_reverse_iterator operator++(int) {
+            const_reverse_iterator tmp(*this);
+            node = node->prev.lock();
+            return tmp;
         }
+        const_reverse_iterator &operator--() {
+            node = node->next;
+            return *this;
+        }
+        const_reverse_iterator operator--(int) {
+            const_reverse_iterator tmp(*this);
+            node = node->next;
+            return tmp;
+        }
+    };
 
-    private:
-        std::shared_ptr<VariantList::Node> node;
+    class reverse_iterator : public iterator {
+    public:
+        reverse_iterator(std::shared_ptr<Node> node)
+            : iterator(node) {}
+        reverse_iterator(const reverse_iterator &rhs)
+            : iterator(rhs) {}
+        reverse_iterator(reverse_iterator &&rhs)
+            : iterator(rhs) {}
+        reverse_iterator &operator=(const reverse_iterator &rhs) {
+            node = rhs.node;
+            return *this;
+        }
+        reverse_iterator &operator++() {
+            node = node->prev.lock();
+            return *this;
+        }
+        reverse_iterator operator++(int dummy) {
+            reverse_iterator tmp(*this);
+            node = node->prev.lock();
+            return tmp;
+        }
+        reverse_iterator &operator--() {
+            node = node->next;
+            return *this;
+        }
+        reverse_iterator operator--(int dummy) {
+            reverse_iterator tmp(*this);
+            node = node->next;
+            return tmp;
+        }
     };
 
     void clear() {
@@ -145,50 +206,18 @@ public:
         }
     }
 
-    VariantList::iterator begin() const {
-        return VariantList::iterator(head);
-    }
-
-    VariantList::iterator begin() {
-        return VariantList::iterator(head);
-    }
-
-    VariantList::iterator end() const {
-        return VariantList::iterator(tail.lock());
-    }
-
-    VariantList::iterator end() {
-        return VariantList::iterator(tail.lock());
-    }
-
     template <typename ElementType>
-    VariantList::iterator insert(const ElementType& elem, iterator itr) {
-        auto newnode = std::make_shared<VariantList::Node>();
-        VariantListElementBase *elem_ptr = new VariantListElement<ElementType>(elem);
-        newnode->elem = std::shared_ptr<VariantListElementBase>(elem_ptr);
+    iterator insert(const ElementType &elem, const iterator &dest) {
+        auto newnode = std::make_shared<Node>();
+        newnode->data = std::make_shared<Variant<ElementType>>(elem);
 
-        return insert_node(newnode, itr);
+        ++ len;
+        return insert_node(newnode, dest);
     }
 
-
-    VariantList::iterator erase(iterator itr) {
-        if (size() == 0) {
-            throw std::underflow_error("List size is zero");
-        } else if (itr == end()) {
-            throw std::overflow_error("Cannot erase end()");
-        }
-
-        if (*(itr) == head) {
-            head = head->next;
-        } else {
-            if (!(*itr)->prev.expired()) {
-                (*itr)->prev.lock()->next = (*itr)->next;
-            }
-            (*itr)->next->prev = (*itr)->prev.lock();
-        }
-
+    iterator erase(const iterator &dest) {
         -- len;
-        return ++ itr;
+        return erase_node(dest);
     }
 
     template <typename ElementType>
@@ -202,62 +231,120 @@ public:
     }
 
     void pop_back() {
+        if (begin() == end()) {
+            throw std::underflow_error("VariantList is empty");
+        }
         erase(-- end());
     }
 
     void pop_front() {
-        erase(begin());
+        if (begin() == end()) {
+            throw std::underflow_error("VariantList is empty");
+        }
+        erase(++ begin());
     }
 
-    std::string to_string() const {
-        std::stringstream buf;
-        buf << "[";
-        bool is_first = true;
-        for (auto node : *this) {
-            if (is_first) is_first = false;
-            else buf << ", ";
-            buf << *node->elem;
-        }
-        buf << "]";
-        return buf.str();
-
+    bool empty() const {
+        return size() == 0;
     }
 
-    friend std::ostream& operator<<(std::ostream& buf, const VariantList& lst) {
-        buf << "[";
-        bool is_first = true;
-        using std::cout;
-        using std::endl;
-        for (auto node : lst) {
-            if (is_first) is_first = false;
-            else buf << ", ";
-            buf << *node->elem;
+    size_t size() const {
+        return len;
+    }
+
+    void swap(VariantList &rhs) {
+        std::swap(head, rhs.head);
+        std::swap(tail, rhs.tail);
+        std::swap(len, rhs.len);
+    }
+
+    const_iterator begin() const {
+        return const_iterator(head->next);
+    }
+
+    iterator begin() {
+        return iterator(head->next);
+    }
+
+    const_iterator end() const {
+        return const_iterator(tail);
+    }
+
+    iterator end() {
+        return iterator(tail);
+    }
+
+    const_iterator cbegin() const {
+        return const_iterator(head->next);
+    }
+
+    const_iterator cend() const {
+        return const_iterator(tail);
+    }
+
+    const_reverse_iterator rbegin() const {
+        return const_reverse_iterator(tail->prev.lock());
+    }
+
+    reverse_iterator rbegin() {
+        return reverse_iterator(tail->prev.lock());
+    }
+
+    const_reverse_iterator rend() const {
+        return const_reverse_iterator(head);
+    }
+
+    reverse_iterator rend() {
+        return reverse_iterator(head);
+    }
+
+    const_reverse_iterator crbegin() const {
+        return const_reverse_iterator(tail->prev.lock());
+    }
+
+    const_reverse_iterator crend() const {
+        return const_reverse_iterator(head);
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const VariantList &rhs) {
+        os << "[";
+        bool first = true;
+        for (auto item : rhs) {
+            if (first) first = false;
+            else os << ", ";
+            os << *item;
         }
-        buf << "]";
-        return buf;
+        os << "]";
+        return os;
     }
 
 private:
     std::shared_ptr<Node> head;
-    std::weak_ptr<Node> tail;
+    std::shared_ptr<Node> tail;
     size_t len;
 
-    VariantList::iterator insert_node(std::shared_ptr<VariantList::Node> newnode, VariantList::iterator itr) {
-        newnode->next = (*itr);
-        if (!(*itr)->prev.expired()) {
-            newnode->prev = (*itr)->prev;
-            (*itr)->prev.lock()->next = newnode;
-        }
-        (*itr)->prev = newnode;
+    iterator insert_node(std::shared_ptr<Node> node, const iterator &dest) {
+        auto nextnode = dest.get();
+        node->next = nextnode;
+        auto prevnode = nextnode->prev.lock();
+        node->prev = prevnode;
+        nextnode->prev = node;
+        prevnode->next = node;
 
-        if (head == (*itr)) {
-            head = newnode;
-        }
+        return iterator(node);
+    }
 
-        ++ len;
+    iterator erase_node(iterator cur) {
+        auto thisnode = cur.get();
+        thisnode->next->prev = thisnode->prev.lock();
+        thisnode->prev.lock()->next = thisnode->next;
 
-        return VariantList::iterator(newnode);
+        return ++ cur;
     }
 };
+
+void swap(VariantList &a, VariantList &b) {
+    a.swap(b);
+}
 
 #endif

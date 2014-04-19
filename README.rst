@@ -35,7 +35,12 @@ Usage
 
         cout << variant_list << endl;
 
-        cout << "First element is " << (*variant_list.begin())->get<int>() << endl;
+        auto itr = variant_list.begin();
+        cout << "First: " << itr->get<int>() << endl;
+        ++ itr;
+        cout << "Second: " << itr->get<double>() << endl;
+        ++ itr;
+        cout << "Third: " << itr->get<string>() << endl;
 
         return 0;
     }
@@ -44,8 +49,10 @@ Run the previous code section will print
 
 .. code::
 
-    [1, 1.2, Hello, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
-    First element is 1
+    [[1, 1.2, Hello, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
+    First: 1
+    Second: 1.2
+    Third: Hello
 
 TODO
 ====
