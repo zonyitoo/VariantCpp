@@ -45,6 +45,8 @@ Usage
         *itr = make_variant(10.2); // Change element 3 "Hello" (std::string) to 10.2 (Double)
         cout << "Third: " << itr->get<double>() << endl;
 
+        cout << variant_list << endl;
+
         return 0;
     }
 
@@ -52,10 +54,12 @@ Run the previous code section will print
 
 .. code::
 
-    [[1, 1.2, Hello, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
+    [1, 1.2, Hello, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
     First: 1
     Second: 1.2
     Third: Hello
+    Third: 10.2
+    [1, 1.2, 10.2, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
 
 TODO
 ====

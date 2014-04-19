@@ -51,7 +51,7 @@ public:
             : node(rhs.node) {}
         const_iterator(const_iterator &&rhs)
             : node(std::move(rhs.node)) {}
-        iterator &operator=(const const_iterator &rhs) {
+        const_iterator &operator=(const const_iterator &rhs) {
             node = rhs.node;
             return *this;
         }
