@@ -2,7 +2,11 @@
 Variant List
 ------------
 
-A flexible C++ list, which can contain any type
+A flexible C++ linked list, which can contain any type
+
+Just for fun. But I will continue to improve it. :P
+
+*Note: This library is written in C++11 standard*
 
 Usage
 =====
@@ -36,7 +40,21 @@ Usage
         return 0;
     }
 
-The previous code section will print
+Run the previous code section will print
+
+.. code::
 
     [1, 1.2, Hello, [10, 10.1], [1, 1.2, Hello, [10, 10.1]]]
     First element is 1
+
+TODO
+====
+
+* Improve usability
+
+* Implement other kind of variant data structure
+
+License
+=======
+
+MIT License
