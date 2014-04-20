@@ -51,51 +51,74 @@ public:
             : node(rhs.node) {}
         const_iterator(const_iterator &&rhs)
             : node(std::move(rhs.node)) {}
+        virtual ~const_iterator() {}
         const_iterator &operator=(const const_iterator &rhs) {
             node = rhs.node;
             return *this;
         }
 
         const_iterator &operator++() {
-            node = node->next;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->next;
             return *this;
         }
         const_iterator operator++(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             const_iterator tmp(*this);
-            node = node->next;
+            node = node.lock()->next;
             return tmp;
         }
         const_iterator &operator--() {
-            node = node->prev.lock();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->prev.lock();
             return *this;
         }
         const_iterator operator--(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             const_iterator tmp(*this);
-            node = node->prev.lock();
+            node = node.lock()->prev.lock();
             return tmp;
         }
 
         bool operator==(const const_iterator &rhs) const {
-            return rhs.node == node;
+            return rhs.node.lock() == node.lock();
         }
         bool operator!=(const const_iterator &rhs) const {
             return !(rhs == *this);
         }
 
+        bool expired() const {
+            return node.expired();
+        }
+
         std::shared_ptr<VariantBase> operator*() const {
-            return node->data;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            return node.lock()->data;
         }
 
         VariantBase *operator->() const {
-            return node->data.get();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            return node.lock()->data.get();
         }
 
         std::shared_ptr<Node> get() const {
-            return node;
+            return node.lock();
         }
 
     protected:
-        std::shared_ptr<Node> node;
+        std::weak_ptr<Node> node;
     };
 
     class iterator : public const_iterator {
@@ -111,28 +134,46 @@ public:
             return *this;
         }
         iterator &operator++() {
-            node = node->next;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->next;
             return *this;
         }
         iterator operator++(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             iterator tmp(*this);
-            node = node->next;
+            node = node.lock()->next;
             return tmp;
         }
         iterator &operator--() {
-            node = node->prev.lock();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->prev.lock();
             return *this;
         }
         iterator operator--(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             iterator tmp(*this);
-            node = node->prev.lock();
+            node = node.lock()->prev.lock();
             return tmp;
         }
         std::shared_ptr<VariantBase> &operator*() {
-            return node->data;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            return node.lock()->data;
         }
         VariantBase *operator->() {
-            return node->data.get();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            return node.lock()->data.get();
         }
     };
 
@@ -149,21 +190,33 @@ public:
             return *this;
         }
         const_reverse_iterator &operator++() {
-            node = node->prev.lock();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->prev.lock();
             return *this;
         }
         const_reverse_iterator operator++(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             const_reverse_iterator tmp(*this);
-            node = node->prev.lock();
+            node = node.lock()->prev.lock();
             return tmp;
         }
         const_reverse_iterator &operator--() {
-            node = node->next;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->next;
             return *this;
         }
         const_reverse_iterator operator--(int) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             const_reverse_iterator tmp(*this);
-            node = node->next;
+            node = node.lock()->next;
             return tmp;
         }
     };
@@ -181,21 +234,33 @@ public:
             return *this;
         }
         reverse_iterator &operator++() {
-            node = node->prev.lock();
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->prev.lock();
             return *this;
         }
         reverse_iterator operator++(int dummy) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             reverse_iterator tmp(*this);
-            node = node->prev.lock();
+            node = node.lock()->prev.lock();
             return tmp;
         }
         reverse_iterator &operator--() {
-            node = node->next;
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
+            node = node.lock()->next;
             return *this;
         }
         reverse_iterator operator--(int dummy) {
+            if (expired()) {
+                throw std::runtime_error("Iterator is expired");
+            }
             reverse_iterator tmp(*this);
-            node = node->next;
+            node = node.lock()->next;
             return tmp;
         }
     };
@@ -210,13 +275,10 @@ public:
     iterator insert(const ElementType &elem, const iterator &dest) {
         auto newnode = std::make_shared<Node>();
         newnode->data = std::make_shared<Variant<ElementType>>(elem);
-
-        ++ len;
         return insert_node(newnode, dest);
     }
 
     iterator erase(const iterator &dest) {
-        -- len;
         return erase_node(dest);
     }
 
@@ -324,6 +386,9 @@ private:
     size_t len;
 
     iterator insert_node(std::shared_ptr<Node> node, const iterator &dest) {
+        if (dest.expired()) {
+            throw std::runtime_error("Iterator is expired");
+        }
         auto nextnode = dest.get();
         node->next = nextnode;
         auto prevnode = nextnode->prev.lock();
@@ -331,13 +396,20 @@ private:
         nextnode->prev = node;
         prevnode->next = node;
 
+        ++ len;
+
         return iterator(node);
     }
 
     iterator erase_node(iterator cur) {
+        if (cur.expired()) {
+            throw std::runtime_error("Iterator is expired");
+        }
         auto thisnode = cur.get();
         thisnode->next->prev = thisnode->prev.lock();
         thisnode->prev.lock()->next = thisnode->next;
+
+        -- len;
 
         return ++ cur;
     }
